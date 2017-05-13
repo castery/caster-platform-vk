@@ -11,8 +11,6 @@ import { Queue } from './queue';
 
 import { VKMessageContext } from './contexts/message';
 
-import { convertToPeer } from './util/helpers';
-
 import {
 	PLATFORM,
 	defaultOptions,
@@ -38,9 +36,8 @@ export class VKPlatform extends Platform {
 		Object.assign(this.options, defaultOptions);
 
 		this.vk = new VK;
-
 		this._queue = new Queue;
-		this._casters = new WeakSet;
+		this._casters = new Set;
 
 		this._vk = null;
 		this._captchaCount = 0;
@@ -84,13 +81,21 @@ export class VKPlatform extends Platform {
 	 * @inheritdoc
 	 */
 	getOptionsSchema () {
-		return super.getOptionsSchema();
+		return defaultOptionsSchema;
 	}
 
 	/**
 	 * @inheritdoc
 	 */
 	async start () {
+		const token = await this._getToken();
+		const identifier = await this._getIdentifier();
+
+		this.setOptions({
+			id: identifier,
+			adapter: { token }
+		});
+
 		await this.vk.longpoll.start();
 	}
 
@@ -105,37 +110,14 @@ export class VKPlatform extends Platform {
 	 * @inheritdoc
 	 */
 	subscribe (caster) {
-		if (this._casters.has(caster)) {
-			return;
-		}
-
 		this._casters.add(caster);
-
-		this.vk.longpoll.on('message', (message) => {
-			/* Skip messages sent by bot or user manually */
-			if (message.from === 'group' && message.hasFlag('answered')) {
-				return;
-			} else if (message.hasFlag('outbox')) {
-				return;
-			}
-
-			caster.dispatchIncomingMiddleware(
-				new VKMessageContext(this, caster, message)
-			);
-		});
 	}
 
 	/**
 	 * @inheritdoc
 	 */
 	unsubscribe (caster) {
-		if (!this._casters.has(caster)) {
-			return;
-		}
-
 		this._casters.delete(caster);
-
-		/* TODO: Add unsubscribe events longpoll */
 	}
 
 	/**
@@ -151,7 +133,8 @@ export class VKPlatform extends Platform {
 			delete params.text;
 		}
 
-		convertToPeer(params);
+		params.peer_id = params._from.id;
+		delete params._from;
 
 		if (this.options.isGroup) {
 			return this._vk.api.messages.send(params);
@@ -266,10 +249,70 @@ export class VKPlatform extends Platform {
 	 * Add default events vk
 	 */
 	_addDefaultEvents () {
-		this.vk.longpoll.on('chat.kick', (action) => {
+		const longpoll = this.vk.longpoll;
+
+		longpoll.on('chat.kick', (action) => {
 			if (this.vk.options.id === action.kick) {
 				this._queue.clearByPeer(action.peer);
 			}
 		});
+
+		longpoll.on('message', (message) => {
+			/* Skip messages sent by bot or user manually */
+			if (message.from === 'group' && message.hasFlag('answered')) {
+				return;
+			} else if (message.hasFlag('outbox')) {
+				return;
+			}
+
+			for (const caster of this._casters) {
+				caster.dispatchIncomingMiddleware(
+					new VKMessageContext(this, caster, message)
+				);
+			}
+		});
+	}
+
+	/**
+	 * Returns the token
+	 *
+	 * @return {Promise<string>}
+	 */
+	async _getToken () {
+		const { token } = this.options.adapter;
+
+		if (this.options.isGroup) {
+			if (typeof token !== 'string') {
+				throw new Error('Missing group token');
+			}
+
+			return token;
+		}
+
+		try {
+			/* HACK: Check valid user token */
+			await this.vk.api.account.getUserInfo();
+
+			return token;
+		} catch (e) {
+			return await this.vk.auth.standalone().run();
+		}
+	}
+
+	/**
+	 * Returns the identifier
+	 *
+	 * @return {Promise<number>}
+	 */
+	async _getIdentifier () {
+		const { id } = this.options;
+
+		if (id !== null) {
+			return id;
+		}
+
+		const [{ id: userId }] = await this.vk.api.users.get();
+
+		return userId;
 	}
 }

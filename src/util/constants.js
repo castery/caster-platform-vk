@@ -17,6 +17,8 @@ export const PLATFORM = 'vk';
  * @property {number}  [sendingInterval] Interval send message
  */
 export const defaultOptions = {
+	id: null,
+
 	adapter: {},
 
 	isGroup: false,
@@ -31,6 +33,8 @@ export const defaultOptions = {
  * @extends {defaultOptions}
  */
 export const defaultOptionsSchema = Joi.object().keys({
+	id: Joi.number().allow(null),
+
 	adapter: Joi.object(),
 
 	isGroup: Joi.boolean(),
