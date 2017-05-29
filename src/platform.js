@@ -87,6 +87,31 @@ export class VKPlatform extends Platform {
 	/**
 	 * @inheritdoc
 	 */
+	getAdapter () {
+		return this.vk;
+	}
+
+	/**
+	 * Returns the platform id
+	 *
+	 * @return {number}
+	 */
+	getId () {
+		return this.options.id;
+	}
+
+	/**
+	 * Returns the platform name
+	 *
+	 * @return {string}
+	 */
+	getPlatformName () {
+		return PLATFORM;
+	}
+
+	/**
+	 * @inheritdoc
+	 */
 	async start () {
 		const token = await this._getToken();
 		const identifier = await this._getIdentifier();
@@ -109,42 +134,44 @@ export class VKPlatform extends Platform {
 	/**
 	 * @inheritdoc
 	 */
-	subscribe (caster) {
+	async subscribe (caster) {
 		this._casters.add(caster);
+
+		if (!this.isStarted()) {
+			await this.start();
+		}
+
+		caster.outcoming.use({
+			name: `outcoming-vk-${this.options.id}`,
+
+			handler: async (context, next) => {
+				if (context.getPlatformName() !== PLATFORM) {
+					return await next();
+				}
+
+				if (context.getPlatformId() !== this.options.id) {
+					return await next();
+				}
+
+				return await this._send({
+					peer_id: context.to.id,
+					message: context.text
+				});
+			}
+		});
 	}
 
 	/**
 	 * @inheritdoc
 	 */
-	unsubscribe (caster) {
+	async unsubscribe (caster) {
 		this._casters.delete(caster);
-	}
 
-	/**
-	 * Sends a message
-	 *
-	 * @param {Object} params
-	 *
-	 * @return {Promise<mixed>}
-	 */
-	send (params) {
-		if ('text' in params) {
-			params.message = params.text;
-			delete params.text;
+		/* TODO: Add delete outcoming middleware */
+
+		if (this._casters.size === 0 && this.isStarted()) {
+			await this.stop();
 		}
-
-		params.peer_id = params._from.id;
-		delete params._from;
-
-		if (this.options.isGroup) {
-			return this._vk.api.messages.send(params);
-		}
-
-		const promise = this._queue.enqueue(params);
-
-		this._dequeueMessage();
-
-		return promise;
 	}
 
 	/**
@@ -197,6 +224,25 @@ export class VKPlatform extends Platform {
 	 */
 	getCaptchaCount () {
 		return this._captchaCount;
+	}
+
+	/**
+	 * Sends a message
+	 *
+	 * @param {Object} params
+	 *
+	 * @return {Promise<mixed>}
+	 */
+	_send (params) {
+		if (this.options.isGroup) {
+			return this._vk.api.messages.send(params);
+		}
+
+		const promise = this._queue.enqueue(params);
+
+		this._dequeueMessage();
+
+		return promise;
 	}
 
 	/**
@@ -266,8 +312,8 @@ export class VKPlatform extends Platform {
 			}
 
 			for (const caster of this._casters) {
-				caster.dispatchIncomingMiddleware(
-					new VKMessageContext(this, caster, message)
+				caster.dispatchIncoming(
+					new VKMessageContext(caster, message, this.options.id)
 				);
 			}
 		});
@@ -291,7 +337,7 @@ export class VKPlatform extends Platform {
 
 		try {
 			/* HACK: Check valid user token */
-			await this.vk.api.account.getUserInfo();
+			await this.vk.api.account.getInfo();
 
 			return token;
 		} catch (e) {

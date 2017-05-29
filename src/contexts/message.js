@@ -14,16 +14,15 @@ export class VKMessageContext extends MessageContext {
 	/**
 	 * Constructor
 	 *
-	 * @param {VKPlatform} platform
-	 * @param {Caster}     caster
-	 * @param {Message}    message
-	 * @param {string}     type
+	 * @param {Caster}  caster
+	 * @param {Message} message
+	 * @param {number}  id
 	 */
-	constructor (platform, caster,  message) {
+	constructor (caster, message, id) {
 		super(caster);
 
 		this.platform = {
-			id: platform.options.id,
+			id,
 			name: PLATFORM
 		};
 
@@ -47,8 +46,6 @@ export class VKMessageContext extends MessageContext {
 		}
 
 		this.raw = message;
-
-		this._platform = platform;
 	}
 
 	/**
@@ -66,9 +63,12 @@ export class VKMessageContext extends MessageContext {
 			options.text = text;
 		}
 
-		options._from = this.from;
+		const message = new VKMessageContext(this.caster, this.raw, this.platform.id);
 
-		return this._platform.send(options);
+		message.to = this.from;
+		message.text = options.text;
+
+		return this.caster.dispatchOutcoming(message);
 	}
 
 	/**
