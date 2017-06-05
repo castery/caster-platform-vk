@@ -7,7 +7,7 @@ import Joi from 'joi';
  *
  * @type {string}
  */
-export const PLATFORM = 'vk';
+export const PLATFORM_NAME = 'vk';
 
 /**
  * Default options platform

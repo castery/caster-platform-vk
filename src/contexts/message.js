@@ -1,6 +1,6 @@
 'use strict';
 
-import { PLATFORM } from '../util/constants';
+import { PLATFORM_NAME } from '../util/constants';
 
 /* TODO: Change from local package to npm */
 import { MessageContext } from '../../../caster';
@@ -23,7 +23,7 @@ export class VKMessageContext extends MessageContext {
 
 		this.platform = {
 			id,
-			name: PLATFORM
+			name: PLATFORM_NAME
 		};
 
 		this.text = message.text;

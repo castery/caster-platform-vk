@@ -12,7 +12,7 @@ import { Queue } from './queue';
 import { VKMessageContext } from './contexts/message';
 
 import {
-	PLATFORM,
+	PLATFORM_NAME,
 	defaultOptions,
 	defaultOptionsSchema
 } from './util/constants';
@@ -106,7 +106,7 @@ export class VKPlatform extends Platform {
 	 * @return {string}
 	 */
 	getPlatformName () {
-		return PLATFORM;
+		return PLATFORM_NAME;
 	}
 
 	/**
@@ -141,23 +141,19 @@ export class VKPlatform extends Platform {
 			await this.start();
 		}
 
-		caster.outcoming.use({
-			name: `outcoming-vk-${this.options.id}`,
-
-			handler: async (context, next) => {
-				if (context.getPlatformName() !== PLATFORM) {
-					return await next();
-				}
-
-				if (context.getPlatformId() !== this.options.id) {
-					return await next();
-				}
-
-				return await this._send({
-					peer_id: context.to.id,
-					message: context.text
-				});
+		caster.outcoming.addPlatform(this, async (context, next) => {
+			if (context.getPlatformName() !== PLATFORM_NAME) {
+				return await next();
 			}
+
+			if (context.getPlatformId() !== this.options.id) {
+				return await next();
+			}
+
+			return await this._send({
+				peer_id: context.to.id,
+				message: context.text
+			});
 		});
 	}
 
@@ -167,7 +163,7 @@ export class VKPlatform extends Platform {
 	async unsubscribe (caster) {
 		this._casters.delete(caster);
 
-		/* TODO: Add delete outcoming middleware */
+		caster.outcoming.removePlatform(this);
 
 		if (this._casters.size === 0 && this.isStarted()) {
 			await this.stop();
