@@ -2,8 +2,7 @@
 
 import VK from 'vk-io';
 
-/* TODO: Change from local package to npm */
-import { Platform } from '../../caster';
+import { Platform } from '@castery/caster';
 
 import createDebug from 'debug';
 
