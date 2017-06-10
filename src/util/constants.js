@@ -10,6 +10,28 @@ import Joi from 'joi';
 export const PLATFORM_NAME = 'vk';
 
 /**
+ * Supports attachments
+ *
+ * @type {Array}
+ */
+export const supportAttachments = ['image', 'video', 'document'];
+
+/**
+ * Switches type attachments
+ *
+ * @type {Object}
+ */
+export const switchAttachments = {
+	image: 'photo',
+	document: 'doc'
+};
+
+export const switchUploadType = {
+	image: 'message',
+	document: 'doc'
+};
+
+/**
  * Default options platform
  *
  * @type {Object}

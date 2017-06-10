@@ -14,6 +14,9 @@ import { VKMessageContext } from './contexts/message';
 import {
 	PLATFORM_NAME,
 	defaultOptions,
+	switchUploadType,
+	switchAttachments,
+	supportAttachments,
 	defaultOptionsSchema
 } from './util/constants';
 
@@ -150,10 +153,50 @@ export class VKPlatform extends Platform {
 				return await next();
 			}
 
-			return await this._send({
+			const message = {
 				peer_id: context.to.id,
 				message: context.text
-			});
+			};
+
+			if ('attachments' in context) {
+				message.attachment = await Promise.all(
+					context.attachments.filter(({ type }) => (
+						supportAttachments.includes(type)
+					))
+					.map((attachment) => {
+						let { type } = attachment;
+
+						let uploadType = switchUploadType[type] || type;
+
+						if (type in switchAttachments) {
+							type = switchAttachments[type];
+						}
+
+						if ('id' in attachment) {
+							const { id, owner } = attachment;
+
+							return `${type}${owner}_${id}`;
+						}
+
+						return this.vk.upload[uploadType]({
+							source: attachment.source
+						})
+						.tap(console.log)
+						.then((uploaded) => {
+							if (type === 'video') {
+								return `video${uploaded.owner_id}_${uploaded.video_id}`;
+							}
+
+							return this.vk.getAttachment(type, uploaded);
+						})
+						.tap(console.log);
+					})
+				);
+
+				message.attachment = message.attachment.join(',');
+			}
+
+			return await this._send(message);
 		});
 	}
 
