@@ -1,25 +1,25 @@
 'use strict';
 
 import VK from 'vk-io';
-
-import { Platform } from '@castery/caster';
-
 import createDebug from 'debug';
+import { Platform, errors as casterErrors } from '@castery/caster';
 
 import { Queue } from './queue';
-
 import { VKMessageContext } from './contexts/message';
 
 import {
 	PLATFORM_NAME,
 	defaultOptions,
-	switchUploadType,
 	switchAttachments,
-	supportAttachments,
-	defaultOptionsSchema
+	switchUploadMethod,
+	defaultOptionsSchema,
+	supportedContextTypes,
+	supportedAttachmentTypes
 } from './util/constants';
 
-const debug = createDebug('caster:platform-vk');
+const { UnsupportedAttachmentType, UnsupportedContextType } = casterErrors;
+
+const debug = createDebug('caster-vk');
 
 /**
  * Platform for integration with social network VK
@@ -152,20 +152,28 @@ export class VKPlatform extends Platform {
 				return await next();
 			}
 
+			if (supportedContextTypes[context.type] !== true) {
+				throw new UnsupportedContextType({
+					type: context.type
+				});
+			}
+
 			const message = {
 				peer_id: context.to.id,
 				message: context.text
 			};
 
 			if ('attachments' in context) {
-				message.attachment = await Promise.all(
-					context.attachments.filter(({ type }) => (
-						supportAttachments.includes(type)
-					))
-					.map((attachment) => {
-						let { type } = attachment;
+				for (const { type } of context.attachments) {
+					if (supportedAttachmentTypes[type] !== true) {
+						throw new UnsupportedAttachmentType({ type });
+					}
+				}
 
-						let uploadType = switchUploadType[type] || type;
+				const attachments = await Promise.all(
+					context.attachments.map((attachment) => {
+						let { type } = attachment;
+						let uploadMethod = switchUploadMethod[type] || type;
 
 						if (type in switchAttachments) {
 							type = switchAttachments[type];
@@ -177,22 +185,20 @@ export class VKPlatform extends Platform {
 							return `${type}${owner}_${id}`;
 						}
 
-						return this.vk.upload[uploadType]({
+						return this.vk.upload[uploadMethod]({
 							source: attachment.source
 						})
-						.tap(console.log)
 						.then((uploaded) => {
 							if (type === 'video') {
 								return `video${uploaded.owner_id}_${uploaded.video_id}`;
 							}
 
 							return this.vk.getAttachment(type, uploaded);
-						})
-						.tap(console.log);
+						});
 					})
 				);
 
-				message.attachment = message.attachment.join(',');
+				message.attachment = attachments.join(',');
 			}
 
 			return await this._send(message);
