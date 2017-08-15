@@ -49,6 +49,7 @@ export class VKPlatform extends Platform {
 			this.setOptions(options);
 		}
 
+		this._setReplacePrefix();
 		this._addDefaultEvents();
 	}
 
@@ -74,6 +75,10 @@ export class VKPlatform extends Platform {
 			} else if (!this.options.isGroup) {
 				this._vk = null;
 			}
+		}
+
+		if ('prefix' in options) {
+			this._setReplacePrefix();
 		}
 
 		return this;
@@ -339,7 +344,7 @@ export class VKPlatform extends Platform {
 	 * Add default events vk
 	 */
 	_addDefaultEvents () {
-		const longpoll = this.vk.longpoll;
+		const { longpoll } = this.vk;
 
 		longpoll.on('chat.kick', (action) => {
 			if (this.vk.options.id === action.kick) {
@@ -355,9 +360,23 @@ export class VKPlatform extends Platform {
 				return;
 			}
 
+			let $text = message.text;
+
+			if (message.from !== 'group' && $text !== null) {
+				if (message.from === 'chat' && !this._hasPrefix.test($text)) {
+					return;
+				}
+
+				$text = $text.replace(this._replacePrefix, '');
+			}
+
 			for (const caster of this._casters) {
 				caster.dispatchIncoming(
-					new VKMessageContext(caster, message, this.options.id)
+					new VKMessageContext(caster, {
+						id: this.options.id,
+						message,
+						$text
+					})
 				);
 			}
 		});
@@ -404,5 +423,23 @@ export class VKPlatform extends Platform {
 		const [{ id: userId }] = await this.vk.api.users.get();
 
 		return userId;
+	}
+
+	/**
+	 * Sets replace prefix
+	 */
+	_setReplacePrefix () {
+		let { prefix } = this.options;
+
+		prefix = String.raw`^(?:${prefix.join('|')})`;
+
+		this._hasPrefix = new RegExp(
+			String.raw`${prefix}.+`,
+			'i'
+		);
+		this._replacePrefix = new RegExp(
+			String.raw`${prefix}?[, ]*`,
+			'i'
+		);
 	}
 }

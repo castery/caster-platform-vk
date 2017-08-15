@@ -23,7 +23,7 @@ export class VKMessageContext extends MessageContext {
 	 * @param {Message} message
 	 * @param {number}  id
 	 */
-	constructor (caster, message, id) {
+	constructor (caster, { id, message, $text = null }) {
 		super(caster);
 
 		this.platform = {
@@ -32,6 +32,7 @@ export class VKMessageContext extends MessageContext {
 		};
 
 		this.text = message.text;
+		this.$text = $text;
 
 		this.from = {
 			id: message.peer,
@@ -86,7 +87,10 @@ export class VKMessageContext extends MessageContext {
 			options.text = text;
 		}
 
-		const message = new VKMessageContext(this.caster, this.raw, this.platform.id);
+		const message = new VKMessageContext(this.caster, {
+			id: this.platform.id,
+			message: this.raw
+		});
 
 		message.to = this.from;
 		message.text = options.text;
@@ -94,9 +98,9 @@ export class VKMessageContext extends MessageContext {
 		if ('attachments' in options) {
 			if (!Array.isArray(options.attachments)) {
 				options.attachments = [options.attachments];
+			} else {
+				message.attachments = options.attachments;
 			}
-
-			message.attachments = options.attachments;
 		}
 
 		return this.caster.dispatchOutcoming(message);

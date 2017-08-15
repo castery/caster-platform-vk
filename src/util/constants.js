@@ -50,13 +50,19 @@ export const switchUploadMethod = {
  * Default options platform
  *
  * @type {Object}
- * @property {boolean} [isGroup]
+ *
+ * @property {mixed}   [id]              Unique ID platform
+ * @property {Object}  [adapter]         Options for adapter
+ * @property {array}   [prefix]          Message prefix not for group
+ * @property {boolean} [isGroup]         Requests optimization for group
  * @property {number}  [sendingInterval] Interval send message
  */
 export const defaultOptions = {
 	id: null,
 
 	adapter: {},
+
+	prefix: ['Bot'],
 
 	isGroup: false,
 	sendingInterval: 1800
@@ -73,6 +79,8 @@ export const defaultOptionsSchema = Joi.object().keys({
 	id: Joi.number().allow(null),
 
 	adapter: Joi.object(),
+
+	prefix: Joi.array(),
 
 	isGroup: Joi.boolean(),
 	sendingInterval: Joi.number().min(100)
