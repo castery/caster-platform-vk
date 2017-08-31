@@ -1,6 +1,6 @@
 'use strict';
 
-import VK from 'vk-io';
+import VK from '../../vk-io@3.2.0';
 import createDebug from 'debug';
 import { Platform, errors as casterErrors } from '@castery/caster';
 
@@ -404,6 +404,7 @@ export class VKPlatform extends Platform {
 
 			return token;
 		} catch (e) {
+			console.log(e);
 			return await this.vk.auth.standalone().run();
 		}
 	}
