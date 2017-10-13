@@ -1,11 +1,14 @@
-'use strict';
-
-import VK from '../../vk-io@3.2.0';
 import createDebug from 'debug';
-import { Platform, errors as casterErrors } from '@castery/caster';
+import {
+	Platform,
+	UnsupportedContextType,
+	UnsupportedAttachmentType
+} from '@castery/caster';
 
-import { Queue } from './queue';
-import { VKMessageContext } from './contexts/message';
+import VK from '../../vk-io@4.0.0';
+
+import Queue from './queue';
+import VKMessageContext from './contexts/message';
 
 import {
 	PLATFORM_NAME,
@@ -17,8 +20,6 @@ import {
 	supportedAttachmentTypes
 } from './util/constants';
 
-const { UnsupportedAttachmentType, UnsupportedContextType } = casterErrors;
-
 const debug = createDebug('caster-vk');
 
 /**
@@ -26,37 +27,37 @@ const debug = createDebug('caster-vk');
  *
  * @public
  */
-export class VKPlatform extends Platform {
+export default class VKPlatform extends Platform {
 	/**
 	 * Constructor
 	 *
 	 * @param {Object} options
 	 */
-	constructor (options = {}) {
+	constructor(options = {}) {
 		super();
 
 		Object.assign(this.options, defaultOptions);
 
-		this.vk = new VK;
-		this._queue = new Queue;
-		this._casters = new Set;
+		this.vk = new VK();
+		this.queue = new Queue();
+		this.casters = new Set();
 
-		this._vk = null;
-		this._captchaCount = 0;
-		this._queueTimeout = null;
+		this.group = null;
+		this.captchaCount = 0;
+		this.queueTimeout = null;
 
 		if (Object.keys(options).length > 0) {
 			this.setOptions(options);
 		}
 
-		this._setReplacePrefix();
-		this._addDefaultEvents();
+		this.setReplacePrefix();
+		this.addDefaultEvents();
 	}
 
 	/**
 	 * @inheritdoc
 	 */
-	setOptions (options) {
+	setOptions(options) {
 		super.setOptions(options);
 
 		if ('adapter' in options) {
@@ -64,21 +65,19 @@ export class VKPlatform extends Platform {
 		}
 
 		if ('isGroup' in options) {
-			if (this.options.isGroup && this._vk === null) {
-				this._vk = new VK(
-					this.options.adapter
-				);
+			if (this.options.isGroup && this.group === null) {
+				this.group = new VK(this.options.adapter);
 
-				this._vk.setOptions({
+				this.group.setOptions({
 					call: 'execute'
 				});
 			} else if (!this.options.isGroup) {
-				this._vk = null;
+				this.group = null;
 			}
 		}
 
 		if ('prefix' in options) {
-			this._setReplacePrefix();
+			this.setReplacePrefix();
 		}
 
 		return this;
@@ -87,14 +86,14 @@ export class VKPlatform extends Platform {
 	/**
 	 * @inheritdoc
 	 */
-	getOptionsSchema () {
+	getOptionsSchema() {
 		return defaultOptionsSchema;
 	}
 
 	/**
 	 * @inheritdoc
 	 */
-	getAdapter () {
+	getAdapter() {
 		return this.vk;
 	}
 
@@ -103,7 +102,7 @@ export class VKPlatform extends Platform {
 	 *
 	 * @return {number}
 	 */
-	getId () {
+	getId() {
 		return this.options.id;
 	}
 
@@ -112,16 +111,16 @@ export class VKPlatform extends Platform {
 	 *
 	 * @return {string}
 	 */
-	getPlatformName () {
+	getPlatformName() {
 		return PLATFORM_NAME;
 	}
 
 	/**
 	 * @inheritdoc
 	 */
-	async start () {
-		const token = await this._getToken();
-		const identifier = await this._getIdentifier();
+	async start() {
+		const token = await this.getToken();
+		const identifier = await this.getIdentifier();
 
 		this.setOptions({
 			id: identifier,
@@ -134,15 +133,15 @@ export class VKPlatform extends Platform {
 	/**
 	 * @inheritdoc
 	 */
-	async stop () {
+	async stop() {
 		await this.vk.longpoll.stop();
 	}
 
 	/**
 	 * @inheritdoc
 	 */
-	async subscribe (caster) {
-		this._casters.add(caster);
+	async subscribe(caster) {
+		this.casters.add(caster);
 
 		if (!this.isStarted()) {
 			await this.start();
@@ -175,24 +174,24 @@ export class VKPlatform extends Platform {
 					}
 				}
 
-				const attachments = await Promise.all(
-					context.attachments.map((attachment) => {
-						let { type } = attachment;
-						let uploadMethod = switchUploadMethod[type] || type;
+				const attachments = await Promise.all(context.attachments.map((attachment) => {
+					let { type } = attachment;
+					const uploadMethod = switchUploadMethod[type] || type;
 
-						if (type in switchAttachments) {
-							type = switchAttachments[type];
-						}
+					if (type in switchAttachments) {
+						// eslint-disable-next-line prefer-destructuring
+						type = switchAttachments[type];
+					}
 
-						if ('id' in attachment) {
-							const { id, owner } = attachment;
+					if ('id' in attachment) {
+						const { id, owner } = attachment;
 
-							return `${type}${owner}_${id}`;
-						}
+						return `${type}${owner}_${id}`;
+					}
 
-						return this.vk.upload[uploadMethod]({
-							source: attachment.source
-						})
+					return this.vk.upload[uploadMethod]({
+						source: attachment.source
+					})
 						.then((uploaded) => {
 							if (type === 'video') {
 								return `video${uploaded.owner_id}_${uploaded.video_id}`;
@@ -200,25 +199,24 @@ export class VKPlatform extends Platform {
 
 							return this.vk.getAttachment(type, uploaded);
 						});
-					})
-				);
+				}));
 
 				message.attachment = attachments.join(',');
 			}
 
-			return await this._send(message);
+			return await this.send(message);
 		});
 	}
 
 	/**
 	 * @inheritdoc
 	 */
-	async unsubscribe (caster) {
-		this._casters.delete(caster);
+	async unsubscribe(caster) {
+		this.casters.delete(caster);
 
 		caster.outcoming.removePlatform(this);
 
-		if (this._casters.size === 0 && this.isStarted()) {
+		if (this.casters.size === 0 && this.isStarted()) {
 			await this.stop();
 		}
 	}
@@ -230,29 +228,29 @@ export class VKPlatform extends Platform {
 	 *
 	 * @return {this}
 	 */
-	setCaptchaHandler (handler) {
+	setCaptchaHandler(handler) {
 		this.vk.setCaptchaHandler((src, sid, retry) => {
-			this._captchaCount += 1;
+			this.captchaCount += 1;
 
-			this._clearQueueTimeout();
+			this.clearQueueTimeout();
 
-			handler(src, sid, (key) => (
+			handler(src, sid, key => (
 				retry(key)
-				.then(() => {
-					this._captchaCount -= 1;
+					.then(() => {
+						this.captchaCount -= 1;
 
-					debug('Captcha success');
+						debug('Captcha success');
 
-					this._clearQueueTimeout();
-					this._dequeueMessage();
-				})
-				.catch((error) => {
-					this._captchaCount -= 1;
+						this.clearQueueTimeout();
+						this.dequeueMessage();
+					})
+					.catch((error) => {
+						this.captchaCount -= 1;
 
-					debug('Captcha fail');
+						debug('Captcha fail');
 
-					throw error;
-				})
+						throw error;
+					})
 			));
 		});
 	}
@@ -262,8 +260,8 @@ export class VKPlatform extends Platform {
 	 *
 	 * @return {boolean}
 	 */
-	hasCaptcha () {
-		return this._captchaCount > 0;
+	hasCaptcha() {
+		return this.captchaCount > 0;
 	}
 
 	/**
@@ -271,8 +269,8 @@ export class VKPlatform extends Platform {
 	 *
 	 * @return {number}
 	 */
-	getCaptchaCount () {
-		return this._captchaCount;
+	getCaptchaCount() {
+		return this.captchaCount;
 	}
 
 	/**
@@ -282,14 +280,14 @@ export class VKPlatform extends Platform {
 	 *
 	 * @return {Promise<mixed>}
 	 */
-	_send (params) {
+	send(params) {
 		if (this.options.isGroup) {
-			return this._vk.api.messages.send(params);
+			return this.group.api.messages.send(params);
 		}
 
-		const promise = this._queue.enqueue(params);
+		const promise = this.queue.enqueue(params);
 
-		this._dequeueMessage();
+		this.dequeueMessage();
 
 		return promise;
 	}
@@ -298,57 +296,59 @@ export class VKPlatform extends Platform {
 	 * Starts the queue
 	 * TODO: Make a more versatile option
 	 */
-	_dequeueMessage () {
-		if (this._queueTimeout !== null || this._queue.isEmpty()) {
+	dequeueMessage() {
+		if (this.queueTimeout !== null || this.queue.isEmpty()) {
 			return;
 		}
 
 		if (this.hasCaptcha()) {
-			return this._clearQueueTimeout();
+			this.clearQueueTimeout();
+
+			return;
 		}
 
-		const message = this._queue.dequeue();
+		const message = this.queue.dequeue();
 
 		const { _promise: promise } = message;
-		delete message._promise;
+		delete message.promise;
 
-		this._queueTimeout = setTimeout(() => {
-			this._clearQueueTimeout();
+		this.queueTimeout = setTimeout(() => {
+			this.clearQueueTimeout();
 
-			this._dequeueMessage();
+			this.dequeueMessage();
 		}, this.options.sendingInterval);
 
 		this.vk.api.messages.send(message)
-		.then((response) => {
-			for (const resolve of promise.resolve) {
-				resolve(response);
-			}
-		})
-		.catch((error) => {
-			for (const reject of promise.reject) {
-				reject(error);
-			}
-		});
+			.then((response) => {
+				for (const resolve of promise.resolve) {
+					resolve(response);
+				}
+			})
+			.catch((error) => {
+				for (const reject of promise.reject) {
+					reject(error);
+				}
+			});
 	}
 
 	/**
 	 * Clear queue timeout
 	 */
-	_clearQueueTimeout () {
-		clearTimeout(this._queueTimeout);
+	clearQueueTimeout() {
+		clearTimeout(this.queueTimeout);
 
-		this._queueTimeout = null;
+		this.queueTimeout = null;
 	}
 
 	/**
 	 * Add default events vk
 	 */
-	_addDefaultEvents () {
+	addDefaultEvents() {
 		const { longpoll } = this.vk;
 
 		longpoll.on('chat.kick', (action) => {
 			if (this.vk.options.id === action.kick) {
-				this._queue.clearByPeer(action.peer);
+				this.queue.clearByPeer(action.peer);
 			}
 		});
 
@@ -363,21 +363,19 @@ export class VKPlatform extends Platform {
 			let $text = message.text;
 
 			if (message.from !== 'group' && $text !== null) {
-				if (message.from === 'chat' && !this._hasPrefix.test($text)) {
+				if (message.from === 'chat' && !this.hasPrefix.test($text)) {
 					return;
 				}
 
-				$text = $text.replace(this._replacePrefix, '');
+				$text = $text.replace(this.replacePrefix, '');
 			}
 
-			for (const caster of this._casters) {
-				caster.dispatchIncoming(
-					new VKMessageContext(caster, {
-						id: this.options.id,
-						message,
-						$text
-					})
-				);
+			for (const caster of this.casters) {
+				caster.dispatchIncoming(new VKMessageContext(caster, {
+					id: this.options.id,
+					message,
+					$text
+				}));
 			}
 		});
 	}
@@ -387,7 +385,7 @@ export class VKPlatform extends Platform {
 	 *
 	 * @return {Promise<string>}
 	 */
-	async _getToken () {
+	async getToken() {
 		const { token } = this.options.adapter;
 
 		if (this.options.isGroup) {
@@ -403,8 +401,7 @@ export class VKPlatform extends Platform {
 			await this.vk.api.account.getInfo();
 
 			return token;
-		} catch (e) {
-			console.log(e);
+		} catch (error) {
 			return await this.vk.auth.standalone().run();
 		}
 	}
@@ -414,7 +411,7 @@ export class VKPlatform extends Platform {
 	 *
 	 * @return {Promise<number>}
 	 */
-	async _getIdentifier () {
+	async getIdentifier() {
 		const { id } = this.options;
 
 		if (id !== null) {
@@ -429,16 +426,16 @@ export class VKPlatform extends Platform {
 	/**
 	 * Sets replace prefix
 	 */
-	_setReplacePrefix () {
+	setReplacePrefix() {
 		let { prefix } = this.options;
 
 		prefix = String.raw`^(?:${prefix.join('|')})`;
 
-		this._hasPrefix = new RegExp(
+		this.hasPrefix = new RegExp(
 			String.raw`${prefix}.+`,
 			'i'
 		);
-		this._replacePrefix = new RegExp(
+		this.replacePrefix = new RegExp(
 			String.raw`${prefix}?[, ]*`,
 			'i'
 		);

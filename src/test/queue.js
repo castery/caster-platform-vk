@@ -1,7 +1,3 @@
-'use strict';
-
-import Promise from 'bluebird';
-
 import { assert, expect } from 'chai';
 
 import { Queue } from '../queue';
@@ -10,7 +6,7 @@ const { NODE_ENV = 'development' } = process.env;
 
 describe('Queue', () => {
 	it('should return a promise when adding to the queue', () => {
-		const queue = new Queue;
+		const queue = new Queue();
 
 		const result = queue.enqueue({
 			peer_id: 1234,
@@ -23,7 +19,7 @@ describe('Queue', () => {
 	});
 
 	it('text messages should be combined', () => {
-		const queue = new Queue;
+		const queue = new Queue();
 
 		const otherPeer = 391;
 		const inPeer = 7071;
@@ -51,7 +47,7 @@ describe('Queue', () => {
 	});
 
 	it('unique text messages should not be combined', () => {
-		const queue = new Queue;
+		const queue = new Queue();
 
 		const otherPeer = 391;
 		const inPeer = 7071;
@@ -86,7 +82,7 @@ describe('Queue', () => {
 	});
 
 	it('combined messages must return the same result', () => {
-		const queue = new Queue;
+		const queue = new Queue();
 
 		const otherPeer = 391;
 		const inPeer = 7071;
@@ -106,20 +102,20 @@ describe('Queue', () => {
 			})
 		];
 
-		for (const resolve of queue.dequeue()._promise.resolve) {
+		for (const resolve of queue.dequeue().promise.resolve) {
 			resolve(inPeer);
 		}
 
-		queue.dequeue()._promise.resolve[0](otherPeer);
+		queue.dequeue().promise.resolve[0](otherPeer);
 
 		return Promise.all(promises)
-		.then((result) => {
-			expect(result).to.deep.equal([inPeer, otherPeer, inPeer]);
-		});
+			.then((result) => {
+				expect(result).to.deep.equal([inPeer, otherPeer, inPeer]);
+			});
 	});
 
 	it('The queue must clear messages by destination ID and reject promise', () => {
-		const queue = new Queue;
+		const queue = new Queue();
 
 		const otherPeer = 391;
 		const inPeer = 7071;
@@ -129,20 +125,20 @@ describe('Queue', () => {
 				peer_id: inPeer,
 				message: 'combined'
 			})
-			.then(() => false)
-			.catch(() => true),
+				.then(() => false)
+				.catch(() => true),
 			queue.enqueue({
 				peer_id: otherPeer,
 				message: 'other'
 			})
-			.then(() => true)
-			.catch(() => false),
+				.then(() => true)
+				.catch(() => false),
 			queue.enqueue({
 				peer_id: inPeer,
 				message: 'message'
 			})
-			.then(() => false)
-			.catch(() => true)
+				.then(() => false)
+				.catch(() => true)
 		];
 
 		queue.clearByPeer(inPeer);
@@ -153,23 +149,23 @@ describe('Queue', () => {
 			throw new Error('There should be only another message left');
 		}
 
-		otherMessage._promise.resolve[0]();
+		otherMessage.promise.resolve[0]();
 
 		return Promise.all(promises)
-		.then((result) => {
-			expect(result).to.deep.equal([true, true, true]);
-		});
+			.then((result) => {
+				expect(result).to.deep.equal([true, true, true]);
+			});
 	});
 
 	it('enqueue should return null in empty queue', () => {
-		const queue = new Queue;
+		const queue = new Queue();
 
-		expect(queue.dequeue()).to.be.null;
+		expect(queue.dequeue()).to.be.null();
 	});
 
 	it('isEmpty should return true in empty queue', () => {
-		const queue = new Queue;
+		const queue = new Queue();
 
-		expect(queue.isEmpty()).to.be.true;
+		expect(queue.isEmpty()).to.be.true();
 	});
 });

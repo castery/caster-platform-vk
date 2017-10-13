@@ -1,3 +1,5 @@
-'use strict';
+import VKPlatform from './platform';
 
-export { VKPlatform } from './platform';
+export { VKPlatform };
+
+export default VKPlatform;

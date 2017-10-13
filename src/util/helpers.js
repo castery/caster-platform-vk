@@ -1,5 +1,3 @@
-'use strict';
-
 /**
  * Checks message for uniqueness
  *
@@ -7,7 +5,8 @@
  *
  * @return {boolean}
  */
-export const isSpecialMessage = (params) => (
+// eslint-disable-next-line import/prefer-default-export
+export const isSpecialMessage = params => (
 	'attachment' in params
 	|| 'forward_messages' in params
 	|| 'sticker_id' in params

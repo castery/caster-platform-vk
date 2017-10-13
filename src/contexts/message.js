@@ -1,5 +1,3 @@
-'use strict';
-
 import { MessageContext, CONTEXT_PROPS } from '@castery/caster';
 
 import {
@@ -15,7 +13,7 @@ const { SUPPORTED_CONTEXT_TYPES, SUPPORTED_ATTACHMENT_TYPES } = CONTEXT_PROPS;
  *
  * @public
  */
-export class VKMessageContext extends MessageContext {
+export default class VKMessageContext extends MessageContext {
 	/**
 	 * Constructor
 	 *
@@ -23,7 +21,7 @@ export class VKMessageContext extends MessageContext {
 	 * @param {Message} message
 	 * @param {number}  id
 	 */
-	constructor (caster, { id, message, $text = null }) {
+	constructor(caster, { id, message, $text = null }) {
 		super(caster);
 
 		this.platform = {
@@ -59,7 +57,7 @@ export class VKMessageContext extends MessageContext {
 	 *
 	 * @return {Object}
 	 */
-	get [SUPPORTED_CONTEXT_TYPES] () {
+	get [SUPPORTED_CONTEXT_TYPES]() {
 		return supportedContextTypes;
 	}
 
@@ -68,7 +66,7 @@ export class VKMessageContext extends MessageContext {
 	 *
 	 * @return {Object}
 	 */
-	get [SUPPORTED_ATTACHMENT_TYPES] () {
+	get [SUPPORTED_ATTACHMENT_TYPES]() {
 		return supportedAttachmentTypes;
 	}
 
@@ -80,7 +78,7 @@ export class VKMessageContext extends MessageContext {
 	 *
 	 * @return {Promise<mixed>}
 	 */
-	send (text, options = {}) {
+	send(text, options = {}) {
 		if (typeof text === 'object') {
 			options = text;
 		} else {
@@ -114,7 +112,7 @@ export class VKMessageContext extends MessageContext {
 	 *
 	 * @return {Promise<mixed>}
 	 */
-	reply (text, options = {}) {
+	reply(text, options = {}) {
 		if (typeof text === 'object') {
 			options = text;
 		} else {

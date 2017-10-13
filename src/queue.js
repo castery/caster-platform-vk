@@ -1,7 +1,3 @@
-'use strict';
-
-import Promise from 'bluebird';
-
 import { isSpecialMessage } from './util/helpers';
 
 /**
@@ -9,11 +5,11 @@ import { isSpecialMessage } from './util/helpers';
  *
  * @private
  */
-export class Queue {
+export default class Queue {
 	/**
 	 * Constructor
 	 */
-	constructor () {
+	constructor() {
 		this.queue = [];
 	}
 
@@ -22,7 +18,7 @@ export class Queue {
 	 *
 	 * @return {number}
 	 */
-	get length () {
+	get length() {
 		return this.queue.length;
 	}
 
@@ -31,7 +27,7 @@ export class Queue {
 	 *
 	 * @return {boolean}
 	 */
-	isEmpty () {
+	isEmpty() {
 		return this.queue.length === 0;
 	}
 
@@ -42,10 +38,12 @@ export class Queue {
 	 *
 	 * @return {Promise<mixed>}
 	 */
-	enqueue (params) {
+	enqueue(params) {
 		return new Promise((resolve, reject) => {
 			if (isSpecialMessage(params)) {
-				return this._enqueue(params, resolve, reject);
+				this.enqueuePush(params, resolve, reject);
+
+				return;
 			}
 
 			const { peer_id: peer } = params;
@@ -57,13 +55,13 @@ export class Queue {
 
 				queued.message += `\n\n${params.message}`;
 
-				queued._promise.resolve.push(resolve);
-				queued._promise.reject.push(reject);
+				queued.promise.resolve.push(resolve);
+				queued.promise.reject.push(reject);
 
-				return;
+				break;
 			}
 
-			this._enqueue(params, resolve, reject);
+			this.enqueuePush(params, resolve, reject);
 		});
 	}
 
@@ -72,7 +70,7 @@ export class Queue {
 	 *
 	 * @return {?Object}
 	 */
-	dequeue () {
+	dequeue() {
 		return this.queue.shift() || null;
 	}
 
@@ -81,10 +79,10 @@ export class Queue {
 	 *
 	 * @param {number} peer
 	 */
-	clearByPeer (peer) {
+	clearByPeer(peer) {
 		const error = new Error(`Purge the queue for the destination ID ${peer}`);
 
-		for (let i = 0; i < this.queue.length; ++i) {
+		for (let i = 0; i < this.queue.length; i += 1) {
 			if (this.queue[i].peer_id !== peer) {
 				continue;
 			}
@@ -94,7 +92,7 @@ export class Queue {
 			/* We return one position back */
 			i -= 1;
 
-			for (const reject of message._promise.reject) {
+			for (const reject of message.promise.reject) {
 				reject(error);
 			}
 		}
@@ -107,8 +105,8 @@ export class Queue {
 	 * @param {function} resolve
 	 * @param {function} reject
 	 */
-	_enqueue (params, resolve, reject) {
-		params._promise = {
+	enqueuePush(params, resolve, reject) {
+		params.promise = {
 			resolve: [resolve],
 			reject: [reject]
 		};
