@@ -1,6 +1,6 @@
 import { assert, expect } from 'chai';
 
-import { Queue } from '../queue';
+import Queue from '../queue';
 
 const { NODE_ENV = 'development' } = process.env;
 
@@ -160,12 +160,12 @@ describe('Queue', () => {
 	it('enqueue should return null in empty queue', () => {
 		const queue = new Queue();
 
-		expect(queue.dequeue()).to.be.null();
+		expect(queue.dequeue()).to.be.equal(null);
 	});
 
 	it('isEmpty should return true in empty queue', () => {
 		const queue = new Queue();
 
-		expect(queue.isEmpty()).to.be.true();
+		expect(queue.isEmpty()).to.be.equal(true);
 	});
 });

@@ -1,4 +1,4 @@
-import { MessageContext, CONTEXT_PROPS } from '@castery/caster';
+import { MessageContext, contextProps } from '@castery/caster';
 
 import {
 	PLATFORM_NAME,
@@ -6,7 +6,7 @@ import {
 	supportedAttachmentTypes
 } from '../util/constants';
 
-const { SUPPORTED_CONTEXT_TYPES, SUPPORTED_ATTACHMENT_TYPES } = CONTEXT_PROPS;
+const { SUPPORTED_CONTEXT_TYPES, SUPPORTED_ATTACHMENT_TYPES } = contextProps;
 
 /**
  * Incoming vk context
@@ -17,39 +17,34 @@ export default class VKMessageContext extends MessageContext {
 	/**
 	 * Constructor
 	 *
-	 * @param {Caster}  caster
-	 * @param {Message} message
-	 * @param {number}  id
+	 * @param {Caster} caster
+	 * @param {Object} payload
 	 */
-	constructor(caster, { id, message, $text = null }) {
+	constructor(caster, { id: idPlatform, context, $text = null }) {
 		super(caster);
 
 		this.platform = {
-			id,
+			id: idPlatform,
 			name: PLATFORM_NAME
 		};
 
-		this.text = message.text;
+		this.text = context.getText();
 		this.$text = $text;
 
-		this.from = {
-			id: message.peer,
-			type: message.from
+		const { id, type } = context.getFrom();
+
+		this.from = { id, type };
+
+		const user = context.getUserId();
+
+		this.sender = {
+			id: user,
+			type: type === 'group'
+				? 'group'
+				: 'user'
 		};
 
-		if (message.from === 'group') {
-			this.sender = {
-				id: -message.peer,
-				type: 'group'
-			};
-		} else {
-			this.sender = {
-				id: message.user,
-				type: 'user'
-			};
-		}
-
-		this.raw = message;
+		this.raw = context;
 	}
 
 	/**
@@ -85,23 +80,25 @@ export default class VKMessageContext extends MessageContext {
 			options.text = text;
 		}
 
-		const message = new VKMessageContext(this.caster, {
+		const context = new VKMessageContext(this.caster, {
 			id: this.platform.id,
-			message: this.raw
+			context: this.raw
 		});
 
-		message.to = this.from;
-		message.text = options.text;
+		context.to = this.from;
+		context.state = { ...this.state };
+
+		context.text = options.text;
 
 		if ('attachments' in options) {
 			if (!Array.isArray(options.attachments)) {
-				options.attachments = [options.attachments];
+				context.attachments = [options.attachments];
 			} else {
-				message.attachments = options.attachments;
+				context.attachments = options.attachments;
 			}
 		}
 
-		return this.caster.dispatchOutcoming(message);
+		return this.caster.dispatchOutcoming(context);
 	}
 
 	/**

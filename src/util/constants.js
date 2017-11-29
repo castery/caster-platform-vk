@@ -24,7 +24,9 @@ export const supportedContextTypes = MessageContext.defaultSupportedContextTypes
  * @type {Object}
  */
 export const supportedAttachmentTypes = MessageContext.defaultSupportedAttachmentTypes({
+	voice: true,
 	image: true,
+	audio: true,
 	video: true,
 	document: true
 });
@@ -40,8 +42,8 @@ export const switchAttachments = {
 };
 
 export const switchUploadMethod = {
-	image: 'message',
-	document: 'doc'
+	image: 'messagePhoto',
+	document: 'messageDoc'
 };
 
 /**
@@ -70,8 +72,6 @@ export const defaultOptions = {
  * Default options platform schema
  *
  * @type {Object}
- *
- * @extends {defaultOptions}
  */
 export const defaultOptionsSchema = Joi.object().keys({
 	id: Joi.number().allow(null),

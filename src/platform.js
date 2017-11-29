@@ -1,15 +1,13 @@
+import { VK } from 'vk-io';
 import createDebug from 'debug';
 import {
 	Platform,
-	UnsupportedContextType,
-	UnsupportedAttachmentType
+	UnsupportedContextTypeError,
+	UnsupportedAttachmentTypeError
 } from '@castery/caster';
-
-import VK from '../../vk-io@4.0.0';
 
 import Queue from './queue';
 import VKMessageContext from './contexts/message';
-
 import {
 	PLATFORM_NAME,
 	defaultOptions,
@@ -42,7 +40,6 @@ export default class VKPlatform extends Platform {
 		this.queue = new Queue();
 		this.casters = new Set();
 
-		this.group = null;
 		this.captchaCount = 0;
 		this.queueTimeout = null;
 
@@ -65,15 +62,16 @@ export default class VKPlatform extends Platform {
 		}
 
 		if ('isGroup' in options) {
-			if (this.options.isGroup && this.group === null) {
-				this.group = new VK(this.options.adapter);
+			const { isGroup } = this.options;
 
-				this.group.setOptions({
-					call: 'execute'
-				});
-			} else if (!this.options.isGroup) {
-				this.group = null;
-			}
+			this.vk.setOptions({
+				limit: isGroup
+					? 20
+					: 3,
+				apiMode: isGroup
+					? 'sequential'
+					: 'parallel_selected'
+			});
 		}
 
 		if ('prefix' in options) {
@@ -119,6 +117,12 @@ export default class VKPlatform extends Platform {
 	 * @inheritdoc
 	 */
 	async start() {
+		if (this.isStarted()) {
+			return;
+		}
+
+		this.started = true;
+
 		const token = await this.getToken();
 		const identifier = await this.getIdentifier();
 
@@ -127,14 +131,20 @@ export default class VKPlatform extends Platform {
 			adapter: { token }
 		});
 
-		await this.vk.longpoll.start();
+		await this.vk.updates.startPolling();
 	}
 
 	/**
 	 * @inheritdoc
 	 */
 	async stop() {
-		await this.vk.longpoll.stop();
+		if (!this.isStarted()) {
+			return;
+		}
+
+		await this.vk.updates.stop();
+
+		this.started = false;
 	}
 
 	/**
@@ -157,7 +167,7 @@ export default class VKPlatform extends Platform {
 			}
 
 			if (supportedContextTypes[context.type] !== true) {
-				throw new UnsupportedContextType({
+				throw new UnsupportedContextTypeError({
 					type: context.type
 				});
 			}
@@ -170,7 +180,7 @@ export default class VKPlatform extends Platform {
 			if ('attachments' in context) {
 				for (const { type } of context.attachments) {
 					if (supportedAttachmentTypes[type] !== true) {
-						throw new UnsupportedAttachmentType({ type });
+						throw new UnsupportedAttachmentTypeError({ type });
 					}
 				}
 
@@ -191,14 +201,7 @@ export default class VKPlatform extends Platform {
 
 					return this.vk.upload[uploadMethod]({
 						source: attachment.source
-					})
-						.then((uploaded) => {
-							if (type === 'video') {
-								return `video${uploaded.owner_id}_${uploaded.video_id}`;
-							}
-
-							return this.vk.getAttachment(type, uploaded);
-						});
+					});
 				}));
 
 				message.attachment = attachments.join(',');
@@ -229,7 +232,7 @@ export default class VKPlatform extends Platform {
 	 * @return {this}
 	 */
 	setCaptchaHandler(handler) {
-		this.vk.setCaptchaHandler((src, sid, retry) => {
+		this.vk.setCaptchaHandler(({ src, sid }, retry) => {
 			this.captchaCount += 1;
 
 			this.clearQueueTimeout();
@@ -282,7 +285,7 @@ export default class VKPlatform extends Platform {
 	 */
 	send(params) {
 		if (this.options.isGroup) {
-			return this.group.api.messages.send(params);
+			return this.vk.api.messages.send(params);
 		}
 
 		const promise = this.queue.enqueue(params);
@@ -309,7 +312,7 @@ export default class VKPlatform extends Platform {
 
 		const message = this.queue.dequeue();
 
-		const { _promise: promise } = message;
+		const { promise } = message;
 		delete message.promise;
 
 		this.queueTimeout = setTimeout(() => {
@@ -344,26 +347,29 @@ export default class VKPlatform extends Platform {
 	 * Add default events vk
 	 */
 	addDefaultEvents() {
-		const { longpoll } = this.vk;
+		const { updates } = this.vk;
 
-		longpoll.on('chat.kick', (action) => {
-			if (this.vk.options.id === action.kick) {
-				this.queue.clearByPeer(action.peer);
-			}
-		});
+		updates.on('message', async (context, next) => {
+			if (context.isEvent()) {
+				if (context.getEventName() !== 'chat_kick_user') {
+					return;
+				}
 
-		longpoll.on('message', (message) => {
-			/* Skip messages sent by bot or user manually */
-			if (message.from === 'group' && message.hasFlag('answered')) {
-				return;
-			} else if (message.hasFlag('outbox')) {
+				this.queue.clearByPeer(context.getEventId());
+
 				return;
 			}
 
-			let $text = message.text;
+			if (context.isOutbox()) {
+				return;
+			}
 
-			if (message.from !== 'group' && $text !== null) {
-				if (message.from === 'chat' && !this.hasPrefix.test($text)) {
+			let $text = context.getText();
+
+			const { type } = context.getFrom();
+
+			if (type !== 'group' && $text !== null) {
+				if (type === 'chat' && !this.hasPrefix.test($text)) {
 					return;
 				}
 
@@ -371,9 +377,9 @@ export default class VKPlatform extends Platform {
 			}
 
 			for (const caster of this.casters) {
-				caster.dispatchIncoming(new VKMessageContext(caster, {
+				await caster.dispatchIncoming(new VKMessageContext(caster, {
 					id: this.options.id,
-					message,
+					context,
 					$text
 				}));
 			}
@@ -402,7 +408,9 @@ export default class VKPlatform extends Platform {
 
 			return token;
 		} catch (error) {
-			return await this.vk.auth.standalone().run();
+			const { token: accessToken } = await this.vk.auth.implicitFlowUser().run();
+
+			return accessToken;
 		}
 	}
 
