@@ -1,5 +1,6 @@
+import Queue from './queue';
 import VKPlatform from './platform';
 
-export { VKPlatform };
+export { VKPlatform, Queue };
 
 export default VKPlatform;

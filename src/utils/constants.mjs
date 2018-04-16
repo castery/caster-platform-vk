@@ -1,4 +1,4 @@
-import Joi from 'joi';
+import * as Joi from 'joi';
 
 import { MessageContext } from '@castery/caster';
 
@@ -55,6 +55,7 @@ export const switchUploadMethod = {
  * @property {Object}  [adapter]         Options for adapter
  * @property {array}   [prefix]          Message prefix not for group
  * @property {boolean} [isGroup]         Requests optimization for group
+ * @property {boolean} [combineMessages] Combine messages
  * @property {number}  [sendingInterval] Interval send message
  */
 export const defaultOptions = {
@@ -65,6 +66,7 @@ export const defaultOptions = {
 	prefix: ['Bot'],
 
 	isGroup: false,
+	combineMessages: false,
 	sendingInterval: 1800
 };
 
@@ -81,5 +83,6 @@ export const defaultOptionsSchema = Joi.object().keys({
 	prefix: Joi.array(),
 
 	isGroup: Joi.boolean(),
+	combineMessages: Joi.boolean(),
 	sendingInterval: Joi.number().min(100)
 });

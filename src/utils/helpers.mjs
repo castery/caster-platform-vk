@@ -1,3 +1,5 @@
+import { generateWarningLog } from '../../../caster';
+
 /**
  * Checks message for uniqueness
  *
@@ -11,3 +13,10 @@ export const isSpecialMessage = params => (
 	|| 'forward_messages' in params
 	|| 'sticker_id' in params
 );
+
+/**
+ * Warning log
+ *
+ * @type {Function}
+ */
+export const warningLog = generateWarningLog('caster-vk');

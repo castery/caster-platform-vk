@@ -1,4 +1,4 @@
-import { isSpecialMessage } from './util/helpers';
+import { isSpecialMessage } from './utils/helpers';
 
 /**
  * A queue for messages with a combination of text messages

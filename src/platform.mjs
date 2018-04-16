@@ -3,11 +3,14 @@ import createDebug from 'debug';
 import {
 	Platform,
 	UnsupportedContextTypeError,
-	UnsupportedAttachmentTypeError
+	UnsupportedAttachmentTypeError,
+
+	generateRandomUUID
 } from '@castery/caster';
 
 import Queue from './queue';
 import VKMessageContext from './contexts/message';
+
 import {
 	PLATFORM_NAME,
 	defaultOptions,
@@ -16,7 +19,8 @@ import {
 	defaultOptionsSchema,
 	supportedContextTypes,
 	supportedAttachmentTypes
-} from './util/constants';
+} from './utils/constants';
+import { warningLog } from './utils/helpers';
 
 const debug = createDebug('caster-vk');
 
@@ -123,11 +127,15 @@ export default class VKPlatform extends Platform {
 
 		this.started = true;
 
+		if (this.options.id === null) {
+			warningLog('options.id should be. By default, the random identifier.');
+
+			this.options.id = generateRandomUUID();
+		}
+
 		const token = await this.getToken();
-		const identifier = await this.getIdentifier();
 
 		this.setOptions({
-			id: identifier,
 			adapter: { token }
 		});
 
@@ -284,7 +292,7 @@ export default class VKPlatform extends Platform {
 	 * @return {Promise<mixed>}
 	 */
 	send(params) {
-		if (this.options.isGroup) {
+		if (this.options.combineMessages === false) {
 			return this.vk.api.messages.send(params);
 		}
 
@@ -350,6 +358,10 @@ export default class VKPlatform extends Platform {
 		const { updates } = this.vk;
 
 		updates.on('message', async (context, next) => {
+			if (context.isOutbox()) {
+				return;
+			}
+
 			if (context.isEvent()) {
 				if (context.getEventName() !== 'chat_kick_user') {
 					return;
@@ -357,10 +369,6 @@ export default class VKPlatform extends Platform {
 
 				this.queue.clearByPeer(context.getEventId());
 
-				return;
-			}
-
-			if (context.isOutbox()) {
 				return;
 			}
 
@@ -395,7 +403,7 @@ export default class VKPlatform extends Platform {
 		const { token } = this.options.adapter;
 
 		if (this.options.isGroup) {
-			if (typeof token !== 'string') {
+			if (!token) {
 				throw new Error('Missing group token');
 			}
 
@@ -412,23 +420,6 @@ export default class VKPlatform extends Platform {
 
 			return accessToken;
 		}
-	}
-
-	/**
-	 * Returns the identifier
-	 *
-	 * @return {Promise<number>}
-	 */
-	async getIdentifier() {
-		const { id } = this.options;
-
-		if (id !== null) {
-			return id;
-		}
-
-		const [{ id: userId }] = await this.vk.api.users.get();
-
-		return userId;
 	}
 
 	/**
