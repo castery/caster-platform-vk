@@ -358,12 +358,14 @@ export default class VKPlatform extends Platform {
 		const { updates } = this.vk;
 
 		updates.on('message', async (context, next) => {
+			console.log(require('util').inspect(context, { depth: null, colors: true }));
+
 			if (context.isOutbox()) {
 				return;
 			}
 
 			if (context.isEvent()) {
-				if (context.getEventName() !== 'chat_kick_user') {
+				if (context.getEventType() !== 'chat_kick_user') {
 					return;
 				}
 
